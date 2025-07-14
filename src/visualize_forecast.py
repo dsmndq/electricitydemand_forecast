@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from pathlib import Path
 import seaborn as sns 
-
-def visualize_forecast_separate(csv_path: str | Path = 'forecast.csv', output_path: str | Path | None = None):
+def visualize_forecast_separate(forecast_csv_path: str | Path, historical_csv_path: str | Path, output_path: str | Path | None = None):
     """
     Reads electricity demand data, splits it into historical and forecast periods,
     and creates two separate plots: one for the overall view and one zoomed-in view.
@@ -12,20 +11,28 @@ def visualize_forecast_separate(csv_path: str | Path = 'forecast.csv', output_pa
     The last 7 days of data are considered the forecast period.
 
     Args:
-        csv_path (str | Path): The path to the forecast CSV file.
+        forecast_csv_path (str | Path): The path to the forecast CSV file.
+        historical_csv_path (str | Path): The path to the original historical data CSV.
         output_path (str | Path | None): The path to save the plot images. If None, plots are displayed.
     """
     try:
         # Load the data from the CSV file
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(forecast_csv_path)
+        historical_df = pd.read_csv(historical_csv_path)
     except FileNotFoundError:
-        print(f"Error: The file '{csv_path}' was not found.")
+        print(f"Error: A data file was not found.")
         return
 
     # --- 1. Data Preparation ---
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.set_index('timestamp', inplace=True)
-    split_date = df.index.max() - pd.Timedelta(days=7)
+    
+    # Dynamically find the split date by finding the last date in the historical data
+    historical_df['timestamp'] = pd.to_datetime(historical_df['timestamp'])
+    split_date = historical_df['timestamp'].max()
+    print(f"Historical data ends on: {split_date}")
+    print(f"Forecast data starts on: {split_date + pd.Timedelta(hours=1)}")
+
     historical_data = df.loc[df.index <= split_date]
     forecast_data = df.loc[df.index > split_date]
 
@@ -36,7 +43,7 @@ def visualize_forecast_separate(csv_path: str | Path = 'forecast.csv', output_pa
     ax_main.plot(historical_data.index, historical_data['demand_forecast_mw'], color='royalblue', label='Historical Data', linewidth=2)
     ax_main.plot(forecast_data.index, forecast_data['demand_forecast_mw'], color='darkorange', label='Forecast Data', linewidth=2)
     ax_main.axvline(x=split_date, color='black', linestyle='--', label='Forecast Start')
-    ax_main.set_title('Electricity Demand: Historical vs. Forecast', fontsize=18, fontweight='bold')
+    ax_main.set_title('Electricity Demand: Historical vs. 30-Day Forecast', fontsize=18, fontweight='bold')
     ax_main.set_xlabel('Date', fontsize=14)
     ax_main.set_ylabel('Demand Forecast (MW)', fontsize=14)
     ax_main.legend(fontsize=12)
@@ -48,8 +55,8 @@ def visualize_forecast_separate(csv_path: str | Path = 'forecast.csv', output_pa
 
     # --- 3. Create the Zoomed-In Plot ---
     fig_zoom, ax_zoom = plt.subplots(figsize=(12, 6))
-    zoom_start = split_date - pd.Timedelta(days=1)
-    zoom_end = split_date + pd.Timedelta(days=3)
+    zoom_start = split_date - pd.Timedelta(days=14) # Show last 14 days of history
+    zoom_end = forecast_data.index.max() # Show the full forecast
     zoom_hist_data = historical_data.loc[historical_data.index >= zoom_start]
     zoom_forecast_data = forecast_data.loc[forecast_data.index <= zoom_end]
     ax_zoom.plot(zoom_hist_data.index, zoom_hist_data['demand_forecast_mw'], color='royalblue', label='Historical Data')
@@ -74,7 +81,7 @@ def visualize_forecast_separate(csv_path: str | Path = 'forecast.csv', output_pa
         print(f"Zoomed plot successfully saved to '{zoom_output_path}'")
     else:
         plt.show()
-        
+
     plt.close(fig_main)
     plt.close(fig_zoom)
 
@@ -96,11 +103,15 @@ def analyze_forecast_patterns(csv_path: str | Path = 'forecast.csv', output_path
         print(f"Error: The file '{csv_path}' was not found.")
         return
 
-    # --- 1. Data Preparation ---
+    # --- 1. Data Preparation & Feature Engineering ---
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.set_index('timestamp', inplace=True)
 
-    # We only analyze the patterns within the forecast period
+    # We only want to analyze the patterns within the *actual* forecast period.
+    # The forecast data starts after the last historical data point.
+    # Note: This assumes the forecast CSV contains historical data as well.
+    # A more robust way would be to get the split_date from the historical file,
+    # but for this analysis, a 7-day forecast window is reasonable.
     split_date = df.index.max() - pd.Timedelta(days=7)
     forecast_data = df.loc[df.index > split_date].copy()
 
@@ -156,17 +167,18 @@ def main():
     plots_dir.mkdir(exist_ok=True)
 
     # Define input and output file paths
-    forecast_csv = "forecast.csv"
-    vis_output = plots_dir / "forecast_visualization.png"
+    forecast_csv_path = Path("forecast.csv")
+    historical_csv_path = Path("electricity_and_weather_data.csv")
+    vis_output_path = plots_dir / "forecast_visualization.png"
     patterns_output = plots_dir / "forecast_patterns.png"
 
-    # This will generate the two visualization plots from our previous work
+    # Generate the main forecast visualization plots (overall and zoomed)
     print("\n--- Generating Forecast Visualization Plots ---")
-    visualize_forecast_separate(csv_path=forecast_csv, output_path=vis_output)
+    visualize_forecast_separate(forecast_csv_path=forecast_csv_path, historical_csv_path=historical_csv_path, output_path=vis_output_path)
 
-    # This will generate the new pattern analysis plot
+    # Generate the pattern analysis plot
     print("\n--- Generating Forecast Pattern Analysis Plot ---")
-    analyze_forecast_patterns(csv_path=forecast_csv, output_path=patterns_output)
+    analyze_forecast_patterns(csv_path=forecast_csv_path, output_path=patterns_output)
 
 
 if __name__ == '__main__':

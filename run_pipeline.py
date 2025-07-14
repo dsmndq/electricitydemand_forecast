@@ -48,14 +48,14 @@ def main():
         "src/feature_engineering.py",
         "src/train_models.py",
         "src/predict.py",
-        "visualize_forecast.py"
+        "src/visualize_forecast.py"
     ]
 
     for script in scripts_to_run:
         run_script(script)
 
     print("--- Pipeline finished successfully! ---")
-    print("Check the root directory for 'forecast.csv', 'forecast_overview.png', and 'forecast_zoom.png'.")
+    print("Check the 'plots/' directory for your forecast visualizations.")
 
 if __name__ == "__main__":
     main()

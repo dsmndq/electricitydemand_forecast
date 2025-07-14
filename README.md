@@ -26,15 +26,14 @@ The entire workflow is automated and can be executed with a single command.
 ├── plots/                 # Stores analysis plots
 ├── src/                   # Source code for the pipeline steps
 │   ├── analyze_electricity_demand.py
-│   ├── feature_engineering.py
+│   ├── feature_engineering.py  
 │   ├── predict.py
-│   └── train_models.py
+│   ├── train_models.py
+│   └── visualize_forecast.py
 ├── .gitignore
 ├── electricity_and_weather_data.csv  # Generated raw data
-├── featured_electricity_data.csv     # Data with engineered features
-├── forecast.csv                      # Final 30-day forecast data
-├── forecast_overview.png             # Visualization of the full forecast
-├── forecast_zoom.png                 # Zoomed-in visualization of the forecast
+├── featured_electricity_data.csv   # Data with engineered features
+├── forecast.csv                    # Final 30-day forecast data
 ├── README.md                         # This file
 ├── requirements.txt                  # Project dependencies
 └── run_pipeline.py                   # Main pipeline execution script
@@ -105,11 +104,13 @@ The `run_pipeline.py` script executes the following modules in sequence:
     *   Engineers the necessary features for the future data, using historical data as a basis for lags and weather proxies.
     *   Generates a 30-day hourly forecast and saves it to `forecast.csv`.
 
-5.  **`visualize_forecast.py`**:
-    *   Loads the historical data and the new forecast from `forecast.csv`.
-    *   Creates and saves two plots to the root directory:
-        *   `forecast_overview.png`: Shows the full history and the 30-day forecast.
-        *   `forecast_zoom.png`: Shows the last few months of history and the forecast for a more detailed view.
+5.  **`src/visualize_forecast.py`**: 
+    *   Loads the historical data and the new 30-day forecast.
+    *   Dynamically identifies the split between historical and forecasted periods.
+    *   Creates and saves three plots to the `plots/` directory:
+        *   `forecast_visualization.png`: Shows the full history and the 30-day forecast.
+        *   `forecast_visualization_zoom.png`: A zoomed-in view of the recent past and the forecast.
+        *   `forecast_patterns.png`: An analysis of average demand by hour and day of the week for the forecast period.
 
 ## Outputs
 
@@ -117,7 +118,7 @@ After a successful run, the following files will be generated:
 
 *   **Data:** `electricity_and_weather_data.csv`, `featured_electricity_data.csv`, `forecast.csv`
 *   **Models:** `models/sarima_model.pkl`, `models/xgboost_model.pkl`
-*   **Plots:** `plots/daily_average_demand.png`, `plots/demand_decomposition.png`, `forecast_overview.png`, `forecast_zoom.png`
+*   **Plots:** `plots/daily_average_demand.png`, `plots/demand_decomposition.png`, `forecast_visualization.png`, `forecast_visualization_zoom.png`, `forecast_patterns.png`
 
 ## License
 
