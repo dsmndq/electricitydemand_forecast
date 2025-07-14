@@ -1,185 +1,137 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import seaborn as sns
 from pathlib import Path
-import seaborn as sns 
-def visualize_forecast_separate(forecast_csv_path: str | Path, historical_csv_path: str | Path, output_path: str | Path | None = None):
+
+def plot_forecast_vs_historical(historical_df, forecast_df, output_folder):
     """
-    Reads electricity demand data, splits it into historical and forecast periods,
-    and creates two separate plots: one for the overall view and one zoomed-in view.
-
-    The last 7 days of data are considered the forecast period.
-
-    Args:
-        forecast_csv_path (str | Path): The path to the forecast CSV file.
-        historical_csv_path (str | Path): The path to the original historical data CSV.
-        output_path (str | Path | None): The path to save the plot images. If None, plots are displayed.
+    Plots the forecast against a recent slice of historical data.
+    This is "The Essential Plot".
     """
-    try:
-        # Load the data from the CSV file
-        df = pd.read_csv(forecast_csv_path)
-        historical_df = pd.read_csv(historical_csv_path)
-    except FileNotFoundError:
-        print(f"Error: A data file was not found.")
-        return
-
-    # --- 1. Data Preparation ---
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df.set_index('timestamp', inplace=True)
+    print("Generating Plot 1: Forecast vs. Historical Data...")
     
-    # Dynamically find the split date by finding the last date in the historical data
-    historical_df['timestamp'] = pd.to_datetime(historical_df['timestamp'])
-    split_date = historical_df['timestamp'].max()
-    print(f"Historical data ends on: {split_date}")
-    print(f"Forecast data starts on: {split_date + pd.Timedelta(hours=1)}")
-
-    historical_data = df.loc[df.index <= split_date]
-    forecast_data = df.loc[df.index > split_date]
-
+    # Get the last 30 days of historical data before the forecast starts
+    last_hist_month = historical_df.loc[historical_df.index < forecast_df.index.min()].last('30D')
+    
     plt.style.use('seaborn-v0_8-whitegrid')
-
-    # --- 2. Create the Main Plot (Overall View) ---
-    fig_main, ax_main = plt.subplots(figsize=(16, 8))
-    ax_main.plot(historical_data.index, historical_data['demand_forecast_mw'], color='royalblue', label='Historical Data', linewidth=2)
-    ax_main.plot(forecast_data.index, forecast_data['demand_forecast_mw'], color='darkorange', label='Forecast Data', linewidth=2)
-    ax_main.axvline(x=split_date, color='black', linestyle='--', label='Forecast Start')
-    ax_main.set_title('Electricity Demand: Historical vs. 30-Day Forecast', fontsize=18, fontweight='bold')
-    ax_main.set_xlabel('Date', fontsize=14)
-    ax_main.set_ylabel('Demand Forecast (MW)', fontsize=14)
-    ax_main.legend(fontsize=12)
-    ax_main.grid(True, which='both', linestyle='--', linewidth=0.5)
-    ax_main.xaxis.set_major_formatter(mdates.DateFormatter('%b %d, %Y'))
-    ax_main.xaxis.set_major_locator(mdates.DayLocator(interval=4))
-    fig_main.autofmt_xdate()
-    plt.tight_layout()
-
-    # --- 3. Create the Zoomed-In Plot ---
-    fig_zoom, ax_zoom = plt.subplots(figsize=(12, 6))
-    zoom_start = split_date - pd.Timedelta(days=14) # Show last 14 days of history
-    zoom_end = forecast_data.index.max() # Show the full forecast
-    zoom_hist_data = historical_data.loc[historical_data.index >= zoom_start]
-    zoom_forecast_data = forecast_data.loc[forecast_data.index <= zoom_end]
-    ax_zoom.plot(zoom_hist_data.index, zoom_hist_data['demand_forecast_mw'], color='royalblue', label='Historical Data')
-    ax_zoom.plot(zoom_forecast_data.index, zoom_forecast_data['demand_forecast_mw'], color='darkorange', label='Forecast Data')
-    ax_zoom.axvline(x=split_date, color='black', linestyle='--', label='Forecast Start')
-    ax_zoom.set_title('Zoomed-In View: Forecast Start', fontsize=16, fontweight='bold')
-    ax_zoom.set_xlabel('Date and Time', fontsize=12)
-    ax_zoom.set_ylabel('Demand Forecast (MW)', fontsize=12)
-    ax_zoom.legend()
-    ax_zoom.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%b-%d'))
-    ax_zoom.xaxis.set_major_locator(mdates.HourLocator(interval=12))
-    fig_zoom.autofmt_xdate()
-    plt.tight_layout()
-
-    # --- 4. Save or Display Plots ---
-    if output_path:
-        p = Path(output_path)
-        zoom_output_path = p.with_stem(f"{p.stem}_zoom")
-        fig_main.savefig(output_path, dpi=300, bbox_inches='tight')
-        fig_zoom.savefig(zoom_output_path, dpi=300, bbox_inches='tight')
-        print(f"Main plot successfully saved to '{output_path}'")
-        print(f"Zoomed plot successfully saved to '{zoom_output_path}'")
-    else:
-        plt.show()
-
-    plt.close(fig_main)
-    plt.close(fig_zoom)
-
-
-def analyze_forecast_patterns(csv_path: str | Path = 'forecast.csv', output_path: str | Path | None = None):
-    """
-    Analyzes the forecast data to show average demand patterns by hour and day of the week.
-
-    This helps validate if the model has learned key business cycles (e.g., daily peaks,
-    weekday vs. weekend differences).
-
-    Args:
-        csv_path (str | Path): The path to the forecast CSV file.
-        output_path (str | Path | None): The path to save the plot image. If None, the plot is displayed.
-    """
-    try:
-        df = pd.read_csv(csv_path)
-    except FileNotFoundError:
-        print(f"Error: The file '{csv_path}' was not found.")
-        return
-
-    # --- 1. Data Preparation & Feature Engineering ---
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df.set_index('timestamp', inplace=True)
-
-    # We only want to analyze the patterns within the *actual* forecast period.
-    # The forecast data starts after the last historical data point.
-    # Note: This assumes the forecast CSV contains historical data as well.
-    # A more robust way would be to get the split_date from the historical file,
-    # but for this analysis, a 7-day forecast window is reasonable.
-    split_date = df.index.max() - pd.Timedelta(days=7)
-    forecast_data = df.loc[df.index > split_date].copy()
-
-    # --- 2. Feature Engineering & Aggregation ---
-    # Extract time features from the index
-    forecast_data['hour'] = forecast_data.index.hour
-    forecast_data['day_of_week'] = forecast_data.index.day_name()
-
-    # Calculate the average demand for each hour and day
-    hourly_avg = forecast_data.groupby('hour')['demand_forecast_mw'].mean()
-    daily_avg = forecast_data.groupby('day_of_week')['demand_forecast_mw'].mean()
-
-    # Ensure days are plotted in the correct order (Mon -> Sun)
-    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    daily_avg = daily_avg.reindex(day_order)
-
-    # --- 3. Visualization ---
-    plt.style.use('seaborn-v0_8-whitegrid')
-    fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-    fig.suptitle('Analysis of Forecasted Demand Patterns', fontsize=20, fontweight='bold')
-
-    # Subplot 1: Average Demand by Hour of Day 🕒
-    axes[0].plot(hourly_avg.index, hourly_avg.values, marker='o', linestyle='-', color='dodgerblue')
-    axes[0].set_title('Average Demand by Hour of Day', fontsize=14)
-    axes[0].set_xlabel('Hour of Day (0-23)', fontsize=12)
-    axes[0].set_ylabel('Average Demand (MW)', fontsize=12)
-    axes[0].set_xticks(range(0, 24, 2))  # Show ticks every 2 hours for clarity
-    axes[0].grid(True, which='both', linestyle='--', linewidth=0.5)
-
-    # Subplot 2: Average Demand by Day of Week 📅
-    sns.barplot(x=daily_avg.index, y=daily_avg.values, ax=axes[1], palette='viridis', hue=daily_avg.index, legend=False)
-    axes[1].set_title('Average Demand by Day of Week', fontsize=14)
-    axes[1].set_xlabel('Day of Week', fontsize=12)
-    axes[1].set_ylabel('') # Y-axis label is shared with the left plot
-    plt.setp(axes[1].get_xticklabels(), rotation=45, ha="right")
-
-    # --- 4. Save or Display Plot ---
-    fig.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust for the suptitle
-
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"Pattern analysis plot saved to '{output_path}'")
-    else:
-        plt.show()
-
+    fig, ax = plt.subplots(figsize=(15, 7))
+    
+    # Plot historical and forecast data
+    ax.plot(last_hist_month.index, last_hist_month['demand_mw'], color='royalblue', label='Historical Demand')
+    ax.plot(forecast_df.index, forecast_df['demand_forecast_mw'], color='darkorange', label='Forecasted Demand')
+    ax.axvline(forecast_df.index.min(), color='crimson', linestyle='--', label='Forecast Start')
+    
+    # Formatting
+    formatter = mdates.DateFormatter('%Y-%m-%d')
+    ax.xaxis.set_major_formatter(formatter)
+    locator = mdates.DayLocator(interval=5)
+    ax.xaxis.set_major_locator(locator)
+    fig.autofmt_xdate()
+    
+    ax.set_title('Electricity Demand: Historical vs. Forecast', fontsize=16, weight='bold')
+    ax.set_xlabel('Date', fontsize=12)
+    ax.set_ylabel('Demand (MW)', fontsize=12)
+    ax.legend()
+    ax.autoscale(axis='x', tight=True)
+    
+    # Save the plot
+    plot_path = output_folder / "01_forecast_vs_historical.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
+    print(f"-> Saved to {plot_path}")
 
+def plot_detailed_zoom(forecast_df, output_folder):
+    """
+    Plots a detailed, zoomed-in view of the first few days of the forecast.
+    This is "The Detailed View".
+    """
+    print("Generating Plot 2: Detailed Forecast Zoom-In...")
+    
+    # Get the first 3 days of the forecast
+    detail_view = forecast_df.first('3D')
+    
+    fig, ax = plt.subplots(figsize=(15, 7))
+    
+    ax.plot(detail_view.index, detail_view['demand_forecast_mw'], color='darkorange', 
+            marker='o', linestyle='-', label='Hourly Forecast')
+
+    # Formatting
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%a, %H:%M'))
+    ax.grid(which='major', linestyle='--', linewidth='0.5')
+    
+    ax.set_title('Detailed Forecast: First 72 Hours', fontsize=16, weight='bold')
+    ax.set_xlabel('Date and Time', fontsize=12)
+    ax.set_ylabel('Predicted Demand (MW)', fontsize=12)
+    
+    # Save the plot
+    plot_path = output_folder / "02_detailed_zoom.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"-> Saved to {plot_path}")
+
+def plot_seasonal_patterns(forecast_df, output_folder):
+    """
+    Analyzes and plots the predicted average hourly and daily patterns.
+    This is "The Analytical View".
+    """
+    print("Generating Plot 3: Analysis of Seasonal Patterns...")
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+    fig.suptitle('Analysis of Predicted Seasonal Patterns', fontsize=18, weight='bold')
+    
+    # Plot 1: Average Hourly Demand Profile
+    hourly_avg = forecast_df.groupby(forecast_df.index.hour)['demand_forecast_mw'].mean()
+    ax1.plot(hourly_avg.index, hourly_avg.values, color='navy', marker='o')
+    ax1.set_title('Predicted Average Hourly Profile', fontsize=14)
+    ax1.set_xlabel('Hour of Day', fontsize=12)
+    ax1.set_ylabel('Average Predicted Demand (MW)', fontsize=12)
+    ax1.set_xticks(range(0, 24, 2))
+    ax1.grid(True)
+
+    # Plot 2: Average Daily Demand Profile
+    daily_avg = forecast_df.groupby(forecast_df.index.dayofweek)['demand_forecast_mw'].mean()
+    day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    sns.barplot(x=day_names, y=daily_avg.values, ax=ax2, palette='viridis', hue=day_names, legend=False)
+    ax2.set_title('Predicted Average Daily Profile', fontsize=14)
+    ax2.set_xlabel('Day of Week', fontsize=12)
+    ax2.set_ylabel('') # Label is shared with left plot
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    
+    # Save the plot
+    plot_path = output_folder / "03_seasonal_analysis.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"-> Saved to {plot_path}")
 
 def main():
-    """Main function to generate and save all forecast visualizations."""
-    # Define the output directory for plots and ensure it exists
-    plots_dir = Path("plots")
-    plots_dir.mkdir(exist_ok=True)
+    """
+    Main function to orchestrate the creation of all forecast visualizations.
+    """
+    # Define paths
+    forecast_path = Path("forecast.csv")
+    historical_data_path = Path("electricity_and_weather_data.csv")
+    output_folder = Path("plots")
+    output_folder.mkdir(exist_ok=True)
 
-    # Define input and output file paths
-    forecast_csv_path = Path("forecast.csv")
-    historical_csv_path = Path("electricity_and_weather_data.csv")
-    vis_output_path = plots_dir / "forecast_visualization.png"
-    patterns_output = plots_dir / "forecast_patterns.png"
+    # Load data
+    print(f"Loading forecast from {forecast_path}...")
+    try:
+        forecast_df = pd.read_csv(forecast_path, index_col='timestamp', parse_dates=True)
+        historical_df = pd.read_csv(historical_data_path, index_col='timestamp', parse_dates=True)
+    except FileNotFoundError as e:
+        print(f"Error: {e}. Please ensure forecast.csv and electricity_and_weather_data.csv are present.")
+        return
+        
+    print("Data loaded successfully.\n")
 
-    # Generate the main forecast visualization plots (overall and zoomed)
-    print("\n--- Generating Forecast Visualization Plots ---")
-    visualize_forecast_separate(forecast_csv_path=forecast_csv_path, historical_csv_path=historical_csv_path, output_path=vis_output_path)
+    # Generate all plots
+    plot_forecast_vs_historical(historical_df, forecast_df, output_folder)
+    plot_detailed_zoom(forecast_df, output_folder)
+    plot_seasonal_patterns(forecast_df, output_folder)
+    
+    print("\nAll visualizations have been generated successfully.")
 
-    # Generate the pattern analysis plot
-    print("\n--- Generating Forecast Pattern Analysis Plot ---")
-    analyze_forecast_patterns(csv_path=forecast_csv_path, output_path=patterns_output)
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

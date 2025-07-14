@@ -56,7 +56,7 @@ def create_future_dataframe(last_timestamp: pd.Timestamp, days: int) -> pd.DataF
     return future_df
 
 
-def predict_future(model, historical_df: pd.DataFrame, weather_df: pd.DataFrame, days_to_predict: int = 30):
+def predict_future(model, historical_df: pd.DataFrame, weather_df: pd.DataFrame, days_to_predict: int = 14):
     """
     Creates features for future dates and predicts demand using the trained model.
 
@@ -129,9 +129,9 @@ def main():
     historical_df = pd.read_csv(historical_data_path, index_col='timestamp', parse_dates=True)
     weather_df = pd.read_csv(original_data_path, index_col='timestamp', parse_dates=True)
 
-    forecast = predict_future(model, historical_df, weather_df, days_to_predict=30)
+    forecast = predict_future(model, historical_df, weather_df, days_to_predict=14)
 
-    print(f"\nSaving 30-day forecast to {output_path}...")
+    print(f"\nSaving 14-day forecast to {output_path}...")
     forecast.to_csv(output_path)
     print("Forecast saved successfully.")
     print("\nForecast head:")
