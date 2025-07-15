@@ -2,6 +2,8 @@
 
 This project implements a complete pipeline to forecast electricity demand. It uses historical electricity demand and weather data to train machine learning models (SARIMA and XGBoost) and generate future demand predictions. The pipeline includes steps for data analysis, feature engineering, model training, prediction, and visualization.
 
+# Read about the project in the [blog post here](https://medium.com/@desmond_57481/powering-the-future-journey-into-forecasting-singapores-electricity-demand-with-xgboost-fd652b25c5e4)
+
 ## Features
 
 - **End-to-End Pipeline**: A single script (`run_pipeline.py`) orchestrates the entire workflow from data analysis to final visualization.
